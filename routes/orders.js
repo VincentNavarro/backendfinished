@@ -4,6 +4,8 @@ const uuid = require('uuid').v4;
 const ordersRouter = new Router({ prefix: '/orders' });
 const ordersData = require('../lib/orders');
 
+const calculateTotal = items => items.reduce((orderTotal, item) => orderTotal += item.price * item.quantity, 0);
+
 ordersRouter.post('/', async ctx => {
     const { customerName, items } = ctx.request.body;
 
@@ -11,13 +13,12 @@ ordersRouter.post('/', async ctx => {
         ctx.throw(409, 'No items ordered')
     }
     
-    const total = items.reduce((orderTotal, item) => orderTotal += item.price, 0)
     const order = {
         id: uuid(),
         customerName,
         createdOn: new Date(),
         items,
-        total
+        total: calculateTotal(items),
     }
 
     ctx.status = 201;
@@ -30,7 +31,7 @@ ordersRouter.get('/', async ctx => {
     let results = ordersData;
 
     if (filterProperty && filterValue) {
-        const filteredResults = ordersData.filter(({ items }) => 
+        const filteredResults = ordersData.map(({ items }) => 
             items.filter(item => item[filterProperty].includes(filterValue))
         )
         results = filteredResults;
@@ -64,8 +65,9 @@ ordersRouter.put('/:id', async ctx => {
 
     const updated = {
         ...order,
-        customerName,
-        items
+        customerName: customerName || order.customerName,
+        items: items && items.length ? items : order.items,
+        total: items && items.length ? calculateTotal(items) : order.total,
     }
 
     ctx.status = 200;
@@ -81,7 +83,7 @@ ordersRouter.delete('/:id', async ctx => {
         ctx.throw(404, 'Could not find order');
     }
 
-    const remaining = ordersData.filter(({ id }) => id !== latest.id);
+    const remaining = ordersData.filter(({ id }) => id !== order.id);
 
     ctx.status = 200;
     ctx.body = remaining;
